@@ -1,10 +1,10 @@
 import { APIGatewayEvent } from "aws-lambda";
 import { s3Client } from "../../clients/S3Client";
-import { PutObjectRequest } from "@aws-sdk/client-s3";
 
 export const handler = async (event: APIGatewayEvent) => {
-  const { body } = event;
-  const image = JSON.parse(body || "{}").image;
+  const image = event.body;
+
+  console.log(image);
 
   if (!image) {
     return {
@@ -14,13 +14,14 @@ export const handler = async (event: APIGatewayEvent) => {
       }),
     };
   }
-
   try {
-    const imageBuffer = Buffer.from(image, "base64");
+    const imageParsed = Buffer.from(image, "base64");
+    const keyName = `image-${new Date().toISOString()}.jpeg`;
     const params = {
       Bucket: process.env.BUCKET_NAME || "",
-      Key: "image.jpg",
-      Body: imageBuffer,
+      Key: keyName,
+      Body: imageParsed,
+      ContentType: "image/jpeg",
     };
 
     const response = await s3Client.putObject(params);
