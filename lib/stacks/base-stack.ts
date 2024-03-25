@@ -4,15 +4,19 @@ import * as iam from "aws-cdk-lib/aws-iam";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Construct } from "constructs";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
-import path = require("path");
+import * as path from "path";
+import { getResourceName } from "../utils/getResourceNames";
 
-export class BaseStack extends cdk.Stack {
+export class BaseStack extends cdk.NestedStack {
+  public readonly bucket: s3.Bucket;
+  public readonly apiEndpoint: cdk.aws_apigateway.RestApi;
+
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    const bucket = new s3.Bucket(this, "storage", {
+    this.bucket = new s3.Bucket(this, "storage", {
       publicReadAccess: true,
-      bucketName: "storage-bucket-images",
+      bucketName: getResourceName("app-image-uploader-bucket"),
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       blockPublicAccess: {
         blockPublicAcls: false,
@@ -25,15 +29,12 @@ export class BaseStack extends cdk.Stack {
     const bucketPublicAccessPolicy = new iam.PolicyStatement({
       sid: "PublicRead",
       effect: iam.Effect.ALLOW,
-      principals: [new iam.AnyPrincipal()],
-      actions: ["s3:GetObject"],
-      resources: [bucket.bucketArn, bucket.arnForObjects("*")],
+      actions: ["s3:GetObject", "s3:PutObject"],
+      resources: [this.bucket.bucketArn, this.bucket.arnForObjects("*")],
     });
 
-    bucket.addToResourcePolicy(bucketPublicAccessPolicy);
-
-    const apiEndpoint = new cdk.aws_apigateway.RestApi(this, "apiEndpoint", {
-      restApiName: "image-uploader-api",
+    this.apiEndpoint = new cdk.aws_apigateway.RestApi(this, "apiEndpoint", {
+      restApiName: getResourceName("image-uploader-api"),
       description: "api endpoint for image uploader",
       deployOptions: {
         stageName: "v1",
@@ -43,22 +44,40 @@ export class BaseStack extends cdk.Stack {
         allowMethods: cdk.aws_apigateway.Cors.ALL_METHODS,
         allowHeaders: ["Content-Type", "Authorization"],
       },
+      binaryMediaTypes: ["image/jpeg", "image/png", "multipart/form-data"],
+    });
+
+    const logGroup = new cdk.aws_logs.LogGroup(this, "logGroup", {
+      logGroupName: getResourceName("image-uploader-log-group"),
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      retention: cdk.aws_logs.RetentionDays.ONE_MONTH,
     });
 
     const handleUploadImage = new NodejsFunction(this, "handleUploadImage", {
-      functionName: "handleUploadImage",
+      functionName: getResourceName("handle-upload-image"),
       entry: path.join(__dirname, "..", "handlers", "api", "uploader-image.ts"),
       runtime: Runtime.NODEJS_20_X,
       handler: "handler",
       memorySize: 1024,
-      environment: {},
+      environment: {
+        BUCKET_NAME: this.bucket.bucketName,
+      },
+      logGroup: logGroup,
     });
 
-    const handleImageResource = apiEndpoint.root.addResource("images");
+    // this.bucket.addToResourcePolicy(bucketPublicAccessPolicy);
+    handleUploadImage.addToRolePolicy(bucketPublicAccessPolicy);
+
+    const handleImageResource = this.apiEndpoint.root.addResource("images");
+    handleImageResource.defaultMethodOptions;
 
     const handleUploadImageIntegration =
       new cdk.aws_apigateway.LambdaIntegration(handleUploadImage);
 
-    handleImageResource.addMethod("POST", handleUploadImageIntegration);
+    handleImageResource.addMethod("POST", handleUploadImageIntegration, {
+      requestParameters: {
+        "method.request.header.Content-Type": true,
+      },
+    });
   }
 }
