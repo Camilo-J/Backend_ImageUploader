@@ -15,7 +15,7 @@ export class BaseStack extends cdk.NestedStack {
     super(scope, id, props);
 
     this.bucket = new s3.Bucket(this, "storage", {
-      publicReadAccess: true,
+      publicReadAccess: false,
       bucketName: getResourceName("app-image-uploader-bucket"),
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       blockPublicAccess: {
@@ -26,10 +26,20 @@ export class BaseStack extends cdk.NestedStack {
       },
     });
 
+    const bucketPublicPolicy = new iam.PolicyStatement({
+      sid: "PublicReadGetObject",
+      effect: iam.Effect.ALLOW,
+      principals: [new iam.AnyPrincipal()],
+      actions: ["s3:GetObject"],
+      resources: [this.bucket.arnForObjects("*")],
+    });
+
+    this.bucket.addToResourcePolicy(bucketPublicPolicy);
+
     const bucketPublicAccessPolicy = new iam.PolicyStatement({
       sid: "PublicRead",
       effect: iam.Effect.ALLOW,
-      actions: ["s3:GetObject", "s3:PutObject"],
+      actions: ["s3:GetObject", "s3:PutObject", "s3:PutObjectAcl"],
       resources: [this.bucket.bucketArn, this.bucket.arnForObjects("*")],
     });
 
