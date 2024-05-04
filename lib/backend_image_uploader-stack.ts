@@ -18,5 +18,9 @@ export class BackendImageUploaderStack extends cdk.Stack {
     new cdk.CfnOutput(this, "bucket", {
       value: baseStack.bucket.bucketName,
     });
+
+    new cdk.CfnOutput(this, "cloudfrontUrl", {
+      value: baseStack.cloudfrontUrl,
+    });
   }
 }

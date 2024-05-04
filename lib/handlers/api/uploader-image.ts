@@ -32,13 +32,13 @@ export const handler = async (event: APIGatewayEvent) => {
     const keyName = `${name}.${result?.ext || "jpeg"}`;
     const params = {
       Bucket: process.env.BUCKET_NAME || "",
-      Key: keyName,
+      Key: `images/${keyName}`,
       Body: imageParsed,
       ContentType: result?.mime || "image/jpeg",
     };
 
     await s3Client.putObject(params);
-    const imageUrl = `https://${params.Bucket}.s3.amazonaws.com/${params.Key}`;
+    const imageUrl = `${process.env.CLOUDFRONT_URL}/images/${keyName}`;
 
     return {
       statusCode: 200,
