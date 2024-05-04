@@ -6,17 +6,26 @@ import { Construct } from "constructs";
 import { Runtime } from "aws-cdk-lib/aws-lambda";
 import * as path from "path";
 import { getResourceName } from "../utils/getResourceNames";
+import {
+  CachePolicy,
+  Distribution,
+  ViewerProtocolPolicy,
+} from "aws-cdk-lib/aws-cloudfront";
+import { S3Origin } from "aws-cdk-lib/aws-cloudfront-origins";
 
 export class BaseStack extends cdk.NestedStack {
   public readonly bucket: s3.Bucket;
   public readonly apiEndpoint: cdk.aws_apigateway.RestApi;
+  public readonly cloudfrontUrl: string;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    const bucketName = process.env.BUCKET_NAME || "";
+
     this.bucket = new s3.Bucket(this, "storage", {
       publicReadAccess: false,
-      bucketName: getResourceName("app-image-uploader-bucket"),
+      bucketName: getResourceName(bucketName),
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       blockPublicAccess: {
         blockPublicAcls: false,
@@ -24,7 +33,31 @@ export class BaseStack extends cdk.NestedStack {
         ignorePublicAcls: false,
         restrictPublicBuckets: false,
       },
+      autoDeleteObjects: true,
     });
+
+    const mediasCloudfront = new Distribution(this, "media-cloudfront", {
+      defaultBehavior: {
+        origin: new S3Origin(this.bucket),
+        viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        cachePolicy: CachePolicy.CACHING_OPTIMIZED,
+      },
+    });
+
+    const cloudFrontOAI = new cdk.aws_cloudfront.OriginAccessIdentity(
+      this,
+      "media-oai",
+      { comment: `OAI for ${id}` }
+    );
+
+    this.bucket.grantRead(cloudFrontOAI);
+
+    mediasCloudfront.addBehavior(
+      "/*",
+      new S3Origin(this.bucket, {
+        originAccessIdentity: cloudFrontOAI,
+      })
+    );
 
     const bucketPublicPolicy = new iam.PolicyStatement({
       sid: "PublicReadGetObject",
@@ -71,6 +104,7 @@ export class BaseStack extends cdk.NestedStack {
       memorySize: 1024,
       environment: {
         BUCKET_NAME: this.bucket.bucketName,
+        CLOUDFRONT_URL: `https://${mediasCloudfront.distributionDomainName}`,
       },
       logGroup: logGroup,
     });
@@ -89,5 +123,7 @@ export class BaseStack extends cdk.NestedStack {
         "method.request.header.Content-Type": true,
       },
     });
+
+    this.cloudfrontUrl = `https://${mediasCloudfront.distributionDomainName}`;
   }
 }
