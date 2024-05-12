@@ -2,6 +2,7 @@ import { APIGatewayEvent } from "aws-lambda";
 import { s3Client } from "../../clients/S3Client";
 import { randomUUID } from "crypto";
 import { validateImageTypes } from "../../utils/validateImageTypes";
+import { formatResponse } from "../../utils/helpers/formatResponse";
 
 export const handler = async (event: APIGatewayEvent) => {
   const image = event.body;
@@ -39,20 +40,9 @@ export const handler = async (event: APIGatewayEvent) => {
 
     await s3Client.putObject(params);
     const imageUrl = `${process.env.CLOUDFRONT_URL}/images/${keyName}`;
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        image_url: imageUrl,
-      }),
-    };
+    return formatResponse({ image_url: imageUrl }, 200);
   } catch (error) {
     console.error(error);
-    return {
-      statusCode: 400,
-      body: JSON.stringify({
-        message: "something went wrong",
-      }),
-    };
+    return formatResponse({}, 200, "something went wrong");
   }
 };
