@@ -109,7 +109,6 @@ export class BaseStack extends cdk.NestedStack {
       logGroup: logGroup,
     });
 
-    // this.bucket.addToResourcePolicy(bucketPublicAccessPolicy);
     handleUploadImage.addToRolePolicy(bucketPublicAccessPolicy);
 
     const handleImageResource = this.apiEndpoint.root.addResource("images");
