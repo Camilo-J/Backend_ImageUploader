@@ -11,7 +11,7 @@ import {
   Distribution,
   ViewerProtocolPolicy,
 } from "aws-cdk-lib/aws-cloudfront";
-import { S3Origin } from "aws-cdk-lib/aws-cloudfront-origins";
+import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 
 export class BaseStack extends cdk.NestedStack {
   public readonly bucket: s3.Bucket;
@@ -38,7 +38,7 @@ export class BaseStack extends cdk.NestedStack {
 
     const mediasCloudfront = new Distribution(this, "media-cloudfront", {
       defaultBehavior: {
-        origin: new S3Origin(this.bucket),
+        origin: S3BucketOrigin.withOriginAccessControl(this.bucket),
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: CachePolicy.CACHING_OPTIMIZED,
       },
@@ -54,9 +54,7 @@ export class BaseStack extends cdk.NestedStack {
 
     mediasCloudfront.addBehavior(
       "/*",
-      new S3Origin(this.bucket, {
-        originAccessIdentity: cloudFrontOAI,
-      })
+      S3BucketOrigin.withOriginAccessControl(this.bucket)
     );
 
     const bucketPublicPolicy = new iam.PolicyStatement({
