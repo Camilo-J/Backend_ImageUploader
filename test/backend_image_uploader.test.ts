@@ -1,17 +1,39 @@
-// import * as cdk from 'aws-cdk-lib';
-// import { Template } from 'aws-cdk-lib/assertions';
-// import * as BackendImageUploader from '../lib/backend_image_uploader-stack';
+import { App, Stack } from "aws-cdk-lib";
+import { BaseStack } from "../lib/stacks/base-stack";
+import { Template } from "aws-cdk-lib/assertions";
 
-// example test. To run these tests, uncomment this file along with the
-// example resource in lib/backend_image_uploader-stack.ts
-test('SQS Queue Created', () => {
-//   const app = new cdk.App();
-//     // WHEN
-//   const stack = new BackendImageUploader.BackendImageUploaderStack(app, 'MyTestStack');
-//     // THEN
-//   const template = Template.fromStack(stack);
+test("Base Stack", () => {
+  const stack = new Stack();
 
-//   template.hasResourceProperties('AWS::SQS::Queue', {
-//     VisibilityTimeout: 300
-//   });
+  new BaseStack(stack, "TestBaseStack");
+
+  const template = Template.fromStack(stack);
+  expect(template.toJSON()).toMatchSnapshot();
+});
+
+test("Test bucket and its permission", () => {
+  const stack = new Stack();
+
+  const baseStack = new BaseStack(stack, "TestBaseStack");
+
+  expect(baseStack.bucket.bucketName).toBeDefined();
+  expect(baseStack.bucket.policy).toBeDefined();
+});
+
+test("Test cloudfront distribution", () => {
+  const app = new App();
+  const stack = new Stack(app, "TestStack");
+
+  const baseStack = new BaseStack(stack, "TestBaseStack");
+
+  expect(baseStack.cloudfrontUrl).toBeDefined();
+});
+
+test("Test api gateway", () => {
+  const stack = new Stack();
+
+  const baseStack = new BaseStack(stack, "TestBaseStack");
+
+  expect(baseStack.apiEndpoint.url).toBeDefined();
+  expect(baseStack.apiEndpoint.restApiName).toContain("image-uploader-api-dev");
 });
