@@ -12,7 +12,7 @@ The infrastructure consists of the following components:
 - **S3 Bucket Policy**: It allows the Lambda function to upload the image to the S3 bucket.
 - **CloudWatch Logs**: It stores the logs of the Lambda function.
  
- ![Infrastructure](https://d3d1blxf7uqspy.cloudfront.net/images/d80aea93-733a-449d-aa5b-d381edd8650a.png)
+ ![Infrastructure](https://d1uas10dts4dky.cloudfront.net/images/8e6c7dbf-d3e7-4c27-85a0-4c9a3320954e.png)
 
 ## Prerequisites
 
