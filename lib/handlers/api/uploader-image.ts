@@ -11,8 +11,8 @@ export const handler = async (event: APIGatewayEvent) => {
     return {
       statusCode: 400,
       body: JSON.stringify({
-        message: "something went wrong",
-      }),
+        message: "something went wrong"
+      })
     };
   }
 
@@ -23,8 +23,8 @@ export const handler = async (event: APIGatewayEvent) => {
     return {
       statusCode: 400,
       body: JSON.stringify({
-        message: "invalid image type",
-      }),
+        message: "invalid image type"
+      })
     };
   }
 
@@ -35,7 +35,7 @@ export const handler = async (event: APIGatewayEvent) => {
       Bucket: process.env.BUCKET_NAME || "",
       Key: `images/${keyName}`,
       Body: imageParsed,
-      ContentType: result?.mime || "image/jpeg",
+      ContentType: result?.mime || "image/jpeg"
     };
 
     await s3Client.putObject(params);
