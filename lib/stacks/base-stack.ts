@@ -1,12 +1,11 @@
 import { NestedStack, RemovalPolicy, StackProps } from "aws-cdk-lib";
-import { Bucket } from "aws-cdk-lib/aws-s3";
-import { PolicyStatement, Effect, AnyPrincipal } from "aws-cdk-lib/aws-iam";
+import { BlockPublicAccess, Bucket } from "aws-cdk-lib/aws-s3";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Construct } from "constructs";
 import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
 import { join } from "path";
 import { getResourceName } from "../utils/getResourceNames";
-import { CachePolicy, Distribution, OriginAccessIdentity, ViewerProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
+import { CachePolicy, CfnDistribution, CfnOriginAccessControl, Distribution, ViewerProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
@@ -25,47 +24,36 @@ export class BaseStack extends NestedStack {
       publicReadAccess: false,
       bucketName: getResourceName(bucketName),
       removalPolicy: RemovalPolicy.DESTROY,
-      blockPublicAccess: {
-        blockPublicAcls: false,
-        blockPublicPolicy: false,
-        ignorePublicAcls: false,
-        restrictPublicBuckets: false
-      },
+      blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
       autoDeleteObjects: true
+    });
+
+    const accessControl = new CfnOriginAccessControl(this, "ImageUploaderOriginAccessControl", {
+      originAccessControlConfig: {
+        name: "ImageUploaderOriginAccessControl",
+        originAccessControlOriginType: "s3",
+        signingBehavior: "always",
+        signingProtocol: "sigv4"
+      }
+    });
+
+    const originAccessControl = S3BucketOrigin.withOriginAccessControl(this.bucket, {
+      originAccessControlId: accessControl.attrId
     });
 
     const mediasCloudfront = new Distribution(this, "media-cloudfront", {
       defaultBehavior: {
-        origin: S3BucketOrigin.withOriginAccessControl(this.bucket),
+        origin: originAccessControl,
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         cachePolicy: CachePolicy.CACHING_OPTIMIZED
       }
     });
 
-    const cloudFrontOAI = new OriginAccessIdentity(this, "media-oai", {
-      comment: `OAI for ${id}`
-    });
+    mediasCloudfront.addBehavior("/*", originAccessControl);
 
-    this.bucket.grantRead(cloudFrontOAI);
+    const cfnDistribution = mediasCloudfront.node.defaultChild as CfnDistribution;
 
-    mediasCloudfront.addBehavior("/*", S3BucketOrigin.withOriginAccessControl(this.bucket));
-
-    const bucketPublicPolicy = new PolicyStatement({
-      sid: "PublicReadGetObject",
-      effect: Effect.ALLOW,
-      principals: [new AnyPrincipal()],
-      actions: ["s3:GetObject"],
-      resources: [this.bucket.arnForObjects("*")]
-    });
-
-    this.bucket.addToResourcePolicy(bucketPublicPolicy);
-
-    const bucketPublicAccessPolicy = new PolicyStatement({
-      sid: "PublicRead",
-      effect: Effect.ALLOW,
-      actions: ["s3:GetObject", "s3:PutObject", "s3:PutObjectAcl"],
-      resources: [this.bucket.bucketArn, this.bucket.arnForObjects("*")]
-    });
+    cfnDistribution.addPropertyOverride("DistributionConfig.Origins.0.OriginAccessControlId", accessControl.getAtt("Id"));
 
     this.apiEndpoint = new RestApi(this, "apiEndpoint", {
       restApiName: getResourceName("image-uploader-api"),
@@ -102,7 +90,7 @@ export class BaseStack extends NestedStack {
       logGroup: logGroup
     });
 
-    handleUploadImage.addToRolePolicy(bucketPublicAccessPolicy);
+    this.bucket.grantReadWrite(handleUploadImage);
 
     const handleImageResource = this.apiEndpoint.root.addResource("images");
     handleImageResource.defaultMethodOptions;
