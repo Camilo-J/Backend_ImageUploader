@@ -1,3 +1,4 @@
+import { CachePolicy, CfnDistribution, CfnOriginAccessControl, Distribution, ResponseHeadersPolicy, ViewerProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
 import { NestedStack, RemovalPolicy, StackProps } from "aws-cdk-lib";
 import { BlockPublicAccess, Bucket } from "aws-cdk-lib/aws-s3";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
@@ -5,7 +6,6 @@ import { Construct } from "constructs";
 import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
 import { join } from "path";
 import { getResourceName } from "../utils/getResourceNames";
-import { CachePolicy, CfnDistribution, CfnOriginAccessControl, Distribution, ViewerProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
 import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
 import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
@@ -41,15 +41,26 @@ export class BaseStack extends NestedStack {
       originAccessControlId: accessControl.attrId
     });
 
+    const responseHeadersPolicy = new ResponseHeadersPolicy(this, "ResponseHeadersPolicy", {
+      responseHeadersPolicyName: "RemoveHeadersPolicy",
+      comment: "A policy to remove specific headers",
+      customHeadersBehavior: {
+        customHeaders: [
+          { header: "Server", override: true, value: "none" },
+          { header: "x-amz-server-side-encryption", override: true, value: "none" },
+          { header: "accept-ranges", override: true, value: "none" }
+        ]
+      }
+    });
+
     const mediasCloudfront = new Distribution(this, "media-cloudfront", {
       defaultBehavior: {
         origin: originAccessControl,
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        responseHeadersPolicy,
         cachePolicy: CachePolicy.CACHING_OPTIMIZED
       }
     });
-
-    mediasCloudfront.addBehavior("/*", originAccessControl);
 
     const cfnDistribution = mediasCloudfront.node.defaultChild as CfnDistribution;
 
