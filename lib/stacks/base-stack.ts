@@ -1,14 +1,14 @@
-import { CachePolicy, CfnDistribution, CfnOriginAccessControl, Distribution, ResponseHeadersPolicy, ViewerProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
-import { NestedStack, RemovalPolicy, StackProps } from "aws-cdk-lib";
-import { BlockPublicAccess, Bucket } from "aws-cdk-lib/aws-s3";
-import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
-import { Construct } from "constructs";
-import { Architecture, Runtime } from "aws-cdk-lib/aws-lambda";
-import { join } from "path";
-import { getResourceName } from "../utils/getResourceNames";
-import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
-import { Cors, LambdaIntegration, RestApi } from "aws-cdk-lib/aws-apigateway";
-import { LogGroup, RetentionDays } from "aws-cdk-lib/aws-logs";
+import { join } from 'node:path';
+import { NestedStack, RemovalPolicy, type StackProps } from 'aws-cdk-lib';
+import { Cors, LambdaIntegration, RestApi } from 'aws-cdk-lib/aws-apigateway';
+import { CachePolicy, type CfnDistribution, CfnOriginAccessControl, Distribution, ResponseHeadersPolicy, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
+import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
+import { Architecture, Runtime } from 'aws-cdk-lib/aws-lambda';
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
+import { BlockPublicAccess, Bucket } from 'aws-cdk-lib/aws-s3';
+import type { Construct } from 'constructs';
+import { getResourceName } from '../utils/getResourceNames';
 
 export class BaseStack extends NestedStack {
   public readonly bucket: Bucket;
@@ -18,9 +18,9 @@ export class BaseStack extends NestedStack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const bucketName = process.env.BUCKET_NAME || "";
+    const bucketName = process.env.BUCKET_NAME || '';
 
-    this.bucket = new Bucket(this, "storage", {
+    this.bucket = new Bucket(this, 'storage', {
       publicReadAccess: false,
       bucketName: getResourceName(bucketName),
       removalPolicy: RemovalPolicy.DESTROY,
@@ -28,12 +28,12 @@ export class BaseStack extends NestedStack {
       autoDeleteObjects: true
     });
 
-    const accessControl = new CfnOriginAccessControl(this, "ImageUploaderOriginAccessControl", {
+    const accessControl = new CfnOriginAccessControl(this, 'ImageUploaderOriginAccessControl', {
       originAccessControlConfig: {
-        name: "ImageUploaderOriginAccessControl",
-        originAccessControlOriginType: "s3",
-        signingBehavior: "always",
-        signingProtocol: "sigv4"
+        name: 'ImageUploaderOriginAccessControl',
+        originAccessControlOriginType: 's3',
+        signingBehavior: 'always',
+        signingProtocol: 'sigv4'
       }
     });
 
@@ -41,19 +41,23 @@ export class BaseStack extends NestedStack {
       originAccessControlId: accessControl.attrId
     });
 
-    const responseHeadersPolicy = new ResponseHeadersPolicy(this, "ResponseHeadersPolicy", {
-      responseHeadersPolicyName: "RemoveHeadersPolicy",
-      comment: "A policy to remove specific headers",
+    const responseHeadersPolicy = new ResponseHeadersPolicy(this, 'ResponseHeadersPolicy', {
+      responseHeadersPolicyName: 'RemoveHeadersPolicy',
+      comment: 'A policy to remove specific headers',
       customHeadersBehavior: {
         customHeaders: [
-          { header: "Server", override: true, value: "none" },
-          { header: "x-amz-server-side-encryption", override: true, value: "none" },
-          { header: "accept-ranges", override: true, value: "none" }
+          { header: 'Server', override: true, value: 'none' },
+          {
+            header: 'x-amz-server-side-encryption',
+            override: true,
+            value: 'none'
+          },
+          { header: 'accept-ranges', override: true, value: 'none' }
         ]
       }
     });
 
-    const mediasCloudfront = new Distribution(this, "media-cloudfront", {
+    const mediasCloudfront = new Distribution(this, 'media-cloudfront', {
       defaultBehavior: {
         origin: originAccessControl,
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
@@ -64,35 +68,35 @@ export class BaseStack extends NestedStack {
 
     const cfnDistribution = mediasCloudfront.node.defaultChild as CfnDistribution;
 
-    cfnDistribution.addPropertyOverride("DistributionConfig.Origins.0.OriginAccessControlId", accessControl.getAtt("Id"));
+    cfnDistribution.addPropertyOverride('DistributionConfig.Origins.0.OriginAccessControlId', accessControl.getAtt('Id'));
 
-    this.apiEndpoint = new RestApi(this, "apiEndpoint", {
-      restApiName: getResourceName("image-uploader-api"),
-      description: "api endpoint for image uploader",
+    this.apiEndpoint = new RestApi(this, 'apiEndpoint', {
+      restApiName: getResourceName('image-uploader-api'),
+      description: 'api endpoint for image uploader',
       deployOptions: {
-        stageName: "v1",
-        description: "v1 of the api"
+        stageName: 'v1',
+        description: 'v1 of the api'
       },
       defaultCorsPreflightOptions: {
         allowOrigins: Cors.ALL_ORIGINS,
         allowMethods: Cors.ALL_METHODS,
-        allowHeaders: ["Content-Type", "Authorization"]
+        allowHeaders: ['Content-Type', 'Authorization']
       },
-      binaryMediaTypes: ["image/jpeg", "image/png", "multipart/form-data"]
+      binaryMediaTypes: ['image/jpeg', 'image/png', 'multipart/form-data']
     });
 
-    const logGroup = new LogGroup(this, "logGroup", {
-      logGroupName: getResourceName("image-uploader-log-group"),
+    const logGroup = new LogGroup(this, 'logGroup', {
+      logGroupName: getResourceName('image-uploader-log-group'),
       removalPolicy: RemovalPolicy.DESTROY,
       retention: RetentionDays.ONE_MONTH
     });
 
-    const handleUploadImage = new NodejsFunction(this, "handleUploadImage", {
-      functionName: getResourceName("handle-upload-image"),
-      entry: join(__dirname, "..", "handlers", "api", "uploader-image.ts"),
-      runtime: Runtime.NODEJS_20_X,
+    const handleUploadImage = new NodejsFunction(this, 'handleUploadImage', {
+      functionName: getResourceName('handle-upload-image'),
+      entry: join(__dirname, '..', 'handlers', 'api', 'uploader-image.ts'),
+      runtime: Runtime.NODEJS_24_X,
       architecture: Architecture.ARM_64,
-      handler: "handler",
+      handler: 'handler',
       memorySize: 1024,
       environment: {
         BUCKET_NAME: this.bucket.bucketName,
@@ -103,14 +107,14 @@ export class BaseStack extends NestedStack {
 
     this.bucket.grantReadWrite(handleUploadImage);
 
-    const handleImageResource = this.apiEndpoint.root.addResource("images");
+    const handleImageResource = this.apiEndpoint.root.addResource('images');
     handleImageResource.defaultMethodOptions;
 
     const handleUploadImageIntegration = new LambdaIntegration(handleUploadImage);
 
-    handleImageResource.addMethod("POST", handleUploadImageIntegration, {
+    handleImageResource.addMethod('POST', handleUploadImageIntegration, {
       requestParameters: {
-        "method.request.header.Content-Type": true
+        'method.request.header.Content-Type': true
       }
     });
 
